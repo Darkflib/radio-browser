@@ -82,13 +82,58 @@ function normalise(station) {
   };
 }
 
+// Number of raw stations to request. The health filter (HTTPS + known codec +
+// valid coordinates) only keeps ~18% of them, so we over-fetch to end up with a
+// well-populated globe (~1800 healthy stations from 10k raw).
+const FETCH_LIMIT = 10000;
+
+// ─── Browser cache ────────────────────────────────────────────────────────────
+// Persist the normalised healthy stations in localStorage so repeat visits load
+// instantly without re-downloading and re-filtering the full dataset.
+const CACHE_KEY = 'radio_browser_stations_v2';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.stations) || !data.stations.length) return null;
+    if (Date.now() - data.timestamp > CACHE_TTL) return null;
+    return data.stations;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(stations) {
+  try {
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ version: 2, timestamp: Date.now(), stations })
+    );
+  } catch {
+    // Quota exceeded or serialization failure — caching is best-effort.
+  }
+}
+
 /**
- * Fetch top 1500 stations by click count.
- * Returns an array of normalised healthy stations.
+ * Fetch the top stations by click count and return normalised healthy stations.
+ *
+ * Results are cached in localStorage for 24h; pass { force: true } to bypass the
+ * cache and re-fetch fresh data.
  */
-export async function fetchStations(onProgress) {
+export async function fetchStations(onProgress, { force = false } = {}) {
+  if (!force) {
+    const cached = readCache();
+    if (cached) {
+      onProgress?.(`Loaded ${cached.length} stations from cache`);
+      return cached;
+    }
+  }
+
   const host = await resolveApiHost();
-  const url = `${host}/json/stations/search?order=clickcount&reverse=true&limit=1500&hidebroken=true`;
+  const url = `${host}/json/stations/search?order=clickcount&reverse=true&limit=${FETCH_LIMIT}&hidebroken=true`;
 
   onProgress?.('Connecting to radio-browser.info…');
 
@@ -101,6 +146,8 @@ export async function fetchStations(onProgress) {
 
   onProgress?.('Filtering healthy stations…');
   const healthy = raw.filter(isHealthy).map(normalise);
+
+  writeCache(healthy);
 
   return healthy;
 }

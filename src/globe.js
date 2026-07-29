@@ -3,7 +3,7 @@
  *
  * Renders a minimalist white "vector" globe (Linear/Vercel aesthetic):
  *  - solid light-grey sphere (no satellite texture)
- *  - country landmasses drawn as subtle dotted hex-polygons
+ *  - country landmasses drawn as accurate filled vector polygons
  *  - stations shown as simple colored dots
  *
  * Country geometry is bundled (world-atlas) so the base map works offline;
@@ -59,7 +59,7 @@ function getMarker(station) {
     codec: station.codec,
     bitrate: station.bitrate,
     color: getMarkerColor(station.uuid),
-    size: 0.4,
+    size: 0.28,
   };
   markerCache.set(station.uuid, m);
   return m;
@@ -82,21 +82,23 @@ export function initGlobe(container, onClickCb) {
     .showAtmosphere(true)
     .atmosphereColor('#bfd3f2')
     .atmosphereAltitude(0.16)
-    // Country landmasses as subtle dotted hex-polygons (the "vector" look)
-    .hexPolygonsData(COUNTRIES)
-    .hexPolygonResolution(3)
-    .hexPolygonMargin(0.55)
-    .hexPolygonUseDots(true)
-    .hexPolygonColor(() => 'rgba(113,125,148,0.55)')
-    .hexPolygonAltitude(0.005)
-    // Station dots
+    // Country landmasses as real filled polygons: accurate borders, subtle
+    // slate fill on the light sphere. Fast (a few hundred shapes) and crisp,
+    // unlike dotted hex-polygons which blur country outlines.
+    .polygonsData(COUNTRIES)
+    .polygonCapColor(() => 'rgba(148,163,184,0.22)')
+    .polygonSideColor(() => 'rgba(0,0,0,0)')
+    .polygonStrokeColor(() => 'rgba(71,85,105,0.55)')
+    .polygonAltitude(0.006)
+    // Station dots — kept small and low-poly so hundreds render smoothly.
+    // pointsMerge stays false so each dot remains hover/click interactive.
     .pointsData([])
     .pointLat(d => d.lat)
     .pointLng(d => d.lng)
     .pointColor(d => d.color)
-    .pointAltitude(0.01)
+    .pointAltitude(0.012)
     .pointRadius(d => d.size)
-    .pointResolution(8)
+    .pointResolution(6)
     .pointsMerge(false)
     // Tooltip (names/details shown only on hover — never rendered onto the globe)
     .pointLabel(d => `
