@@ -1,10 +1,20 @@
 /**
  * Globe module — wraps globe.gl
- * Manages a 3D globe with station dots, hover tooltips, and click callbacks.
- * Markers are cached by stationuuid so they survive filter toggles.
+ *
+ * Renders a minimalist white "vector" globe (Linear/Vercel aesthetic):
+ *  - solid light-grey sphere (no satellite texture)
+ *  - country landmasses drawn as subtle dotted hex-polygons
+ *  - stations shown as simple colored dots
+ *
+ * Country geometry is bundled (world-atlas) so the base map works offline;
+ * only station data is fetched at runtime.
+ *
+ * Markers are cached by stationuuid so dots survive filter toggles.
  */
 
 import Globe from 'globe.gl';
+import { feature } from 'topojson-client';
+import worldData from 'world-atlas/countries-110m.json';
 import { getState } from './store.js';
 
 let globeInstance = null;
@@ -16,10 +26,13 @@ let onStationClick = null;
 let currentPlayingUuid = null;
 
 const COLORS = {
-  default: 'rgba(37,99,235,0.85)',
-  playing: '#ef4444',
-  favorite: '#f59e0b',
+  default: '#2563eb', // blue
+  playing: '#ef4444', // red
+  favorite: '#f59e0b', // amber
 };
+
+// Country polygons (GeoJSON features) derived from bundled topojson.
+const COUNTRIES = feature(worldData, worldData.objects.countries).features;
 
 function getMarkerColor(uuid) {
   const state = getState();
@@ -46,7 +59,7 @@ function getMarker(station) {
     codec: station.codec,
     bitrate: station.bitrate,
     color: getMarkerColor(station.uuid),
-    size: 0.45,
+    size: 0.4,
   };
   markerCache.set(station.uuid, m);
   return m;
@@ -61,22 +74,31 @@ export function initGlobe(container, onClickCb) {
   globeInstance = Globe()(container);
 
   globeInstance
-    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-day.jpg')
-    .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
+    // No texture — a clean solid sphere fits the white/minimalist theme.
+    .globeImageUrl(null)
+    .backgroundColor('rgba(0,0,0,0)')
+    .showGlobe(true)
+    .showGraticules(false)
     .showAtmosphere(true)
-    .atmosphereColor('#e0e7ff')
-    .atmosphereAltitude(0.12)
-    // Points layer
+    .atmosphereColor('#bfd3f2')
+    .atmosphereAltitude(0.16)
+    // Country landmasses as subtle dotted hex-polygons (the "vector" look)
+    .hexPolygonsData(COUNTRIES)
+    .hexPolygonResolution(3)
+    .hexPolygonMargin(0.55)
+    .hexPolygonUseDots(true)
+    .hexPolygonColor(() => 'rgba(113,125,148,0.55)')
+    .hexPolygonAltitude(0.005)
+    // Station dots
     .pointsData([])
     .pointLat(d => d.lat)
     .pointLng(d => d.lng)
     .pointColor(d => d.color)
-    .pointAltitude(0)
+    .pointAltitude(0.01)
     .pointRadius(d => d.size)
-    .pointResolution(6)
-    // Labels (disabled — names shown only in tooltips)
-    .labelTypeFace(null)
-    // Tooltip
+    .pointResolution(8)
+    .pointsMerge(false)
+    // Tooltip (names/details shown only on hover — never rendered onto the globe)
     .pointLabel(d => `
       <div class="globe-tooltip">
         <strong>${escHtml(d.name)}</strong>
@@ -87,18 +109,37 @@ export function initGlobe(container, onClickCb) {
       onStationClick?.(d.uuid);
     });
 
-  // Auto-size
-  const ro = new ResizeObserver(() => {
+  // Light-grey sphere material for the minimalist look.
+  const mat = globeInstance.globeMaterial();
+  if (mat) {
+    mat.color?.set?.('#eef1f6');
+    if ('shininess' in mat) mat.shininess = 4;
+  }
+
+  // Slow, gentle auto-rotation until the user interacts.
+  const controls = globeInstance.controls();
+  if (controls) {
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.35;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    controls.minDistance = 180;
+    // Stop auto-rotation on first user interaction.
+    const stopRotate = () => { controls.autoRotate = false; };
+    controls.addEventListener('start', stopRotate);
+  }
+
+  // Auto-size to the container.
+  const resize = () => {
     globeInstance.width(container.clientWidth);
     globeInstance.height(container.clientHeight);
-  });
+  };
+  const ro = new ResizeObserver(resize);
   ro.observe(container);
+  resize();
 
-  globeInstance.width(container.clientWidth);
-  globeInstance.height(container.clientHeight);
-
-  // Start with a nice view
-  globeInstance.pointOfView({ lat: 20, lng: 0, altitude: 2.2 }, 0);
+  // Start with a pleasant overview.
+  globeInstance.pointOfView({ lat: 25, lng: 0, altitude: 2.4 }, 0);
 
   return globeInstance;
 }
@@ -109,7 +150,6 @@ export function initGlobe(container, onClickCb) {
  */
 export function updateGlobeMarkers(stations) {
   if (!globeInstance) return;
-  // Refresh color for each visible station
   const markers = stations.map(s => {
     const m = getMarker(s);
     m.color = getMarkerColor(s.uuid);
@@ -134,7 +174,9 @@ export function refreshMarkerColors(playingUuid) {
  */
 export function flyToStation(station) {
   if (!globeInstance || !station) return;
-  globeInstance.pointOfView({ lat: station.lat, lng: station.lng, altitude: 1.4 }, 800);
+  const controls = globeInstance.controls();
+  if (controls) controls.autoRotate = false;
+  globeInstance.pointOfView({ lat: station.lat, lng: station.lng, altitude: 1.5 }, 900);
 }
 
 function escHtml(str) {
