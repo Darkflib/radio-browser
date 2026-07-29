@@ -111,10 +111,11 @@ export function initGlobe(container, onClickCb) {
       onStationClick?.(d.uuid);
     });
 
-  // Light-grey sphere material for the minimalist look.
+  // Softly-tinted ocean sphere — a faint cool blue so sea reads distinctly
+  // from land without breaking the clean, minimalist look.
   const mat = globeInstance.globeMaterial();
   if (mat) {
-    mat.color?.set?.('#eef1f6');
+    mat.color?.set?.('#d6e4f2');
     if ('shininess' in mat) mat.shininess = 4;
   }
 

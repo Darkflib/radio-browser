@@ -41,6 +41,7 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* account for mobile browser UI so the player bar stays on-screen */
 }
 
 /* ─── Topbar ─────────────────────────────────────────────────────────────── */
@@ -354,7 +355,9 @@ select:focus { border-color: var(--accent); }
   flex: 1;
   overflow: hidden;
   position: relative;
-  background: var(--bg);
+  /* Fractionally cooler/darker than the white panels so the globe has a
+     subtle backdrop instead of vanishing into the page. */
+  background: radial-gradient(circle at 50% 42%, #eef2f7 0%, #e4e9f1 100%);
 }
 
 #globe-container {
