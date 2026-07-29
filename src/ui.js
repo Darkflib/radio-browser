@@ -106,9 +106,10 @@ export function renderStationList(stations) {
   const state = getState();
   stationCount.textContent = `${stations.length} station${stations.length !== 1 ? 's' : ''}`;
 
-  // Remove cards not in new list
+  // Remove cards not in new list (Set lookup keeps this O(n), not O(n²))
+  const nextUuids = new Set(stations.map(s => s.uuid));
   for (const [uuid, card] of cardMap) {
-    if (!stations.find(s => s.uuid === uuid)) {
+    if (!nextUuids.has(uuid)) {
       card.remove();
       cardMap.delete(uuid);
     }
@@ -321,9 +322,34 @@ searchInput.addEventListener('input', () => {
   searchDebounce = setTimeout(() => renderSearchResults(searchInput.value), 120);
 });
 
+// Keyboard navigation within the search results (↑/↓ to move, Enter to play).
+let searchFocusIndex = -1;
+function setSearchFocus(index) {
+  const items = [...searchResults.querySelectorAll('.search-result-item')];
+  if (items.length === 0) { searchFocusIndex = -1; return; }
+  searchFocusIndex = (index + items.length) % items.length;
+  items.forEach((el, i) => el.classList.toggle('focused', i === searchFocusIndex));
+  items[searchFocusIndex].scrollIntoView({ block: 'nearest' });
+}
+
+searchInput.addEventListener('keydown', e => {
+  const items = [...searchResults.querySelectorAll('.search-result-item')];
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    setSearchFocus(searchFocusIndex + 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    setSearchFocus(searchFocusIndex - 1);
+  } else if (e.key === 'Enter') {
+    const target = items[searchFocusIndex] || items[0];
+    if (target) target.click();
+  }
+});
+
 function renderSearchResults(query) {
   const q = query.trim().toLowerCase();
   searchResults.innerHTML = '';
+  searchFocusIndex = -1;
 
   if (!q) return;
 
