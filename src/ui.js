@@ -28,6 +28,7 @@ const filterCountry  = document.getElementById('filter-country');
 const filterGenre    = document.getElementById('filter-genre');
 const clearFiltersBtn = document.getElementById('clear-filters');
 const favToggle      = document.getElementById('favorites-toggle');
+const randomBtn      = document.getElementById('random-btn');
 
 const player         = document.getElementById('player');
 const playerImg      = document.getElementById('player-img');
@@ -215,6 +216,26 @@ export function playStation(station) {
   flyToStation(station);
 }
 
+// Pick a random station from the current filtered list (falling back to all
+// stations), play it, and bring it into view. Avoids repeating the station
+// that's already playing when there's more than one to choose from.
+export function playRandomStation() {
+  const state = getState();
+  let pool = state.filtered.length ? state.filtered : state.allStations;
+  if (!pool.length) return;
+
+  if (pool.length > 1 && state.currentStation) {
+    const others = pool.filter(s => s.uuid !== state.currentStation.uuid);
+    if (others.length) pool = others;
+  }
+
+  const station = pool[Math.floor(Math.random() * pool.length)];
+  playStation(station);
+  scrollToCard(station.uuid);
+}
+
+randomBtn.addEventListener('click', playRandomStation);
+
 export function updatePlayerUI() {
   const state = getState();
   const station = state.currentStation;
@@ -313,6 +334,13 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (!searchModal.classList.contains('hidden')) { closeSearch(); return; }
     if (!sleepModal.classList.contains('hidden')) { sleepModal.classList.add('hidden'); return; }
+  }
+  // "R" plays a random station — ignore when typing in a field or using modifiers.
+  if ((e.key === 'r' || e.key === 'R') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+    e.preventDefault();
+    playRandomStation();
   }
 });
 
