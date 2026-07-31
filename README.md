@@ -24,6 +24,8 @@ Custom CSS, the Inter typeface, and a minimalist white aesthetic (Linear/Vercel 
   update synchronously, and each filter's option counts recalculate against the current
   selection.
 - **Search** — a ⌘K / Ctrl-K command palette with keyboard navigation.
+- **Random station** — the toolbar shuffle button (or the `R` shortcut) plays a random
+  station from the current filtered selection.
 - **Playback bar** — play/pause, volume, favorite toggle, and a sleep timer.
 - **Favorites** — saved in `localStorage` and available as a dedicated filter.
 
