@@ -18,8 +18,11 @@ Custom CSS, the Inter typeface, and a minimalist white aesthetic (Linear/Vercel 
 - **3D vector globe** — powered by [globe.gl](https://github.com/vasturiano/globe.gl).
   Countries are drawn as accurate filled vector polygons; stations are simple colored
   dots, with names and details in hover tooltips. Clicking a dot starts playback and
-  highlights the matching card in the list (and vice versa). The base map is bundled, so
-  the globe works offline.
+  highlights the matching card in the list (and vice versa). Stations that share a
+  location (radio-browser stores city-level coordinates) are fanned out into a small
+  rosette so each stays clickable; very dense stacks collapse into a single cluster dot
+  that opens a picker listing every station there. The base map is bundled, so the globe
+  works offline.
 - **Filters** — filter by country, genre, and codec. The station count, list, and globe
   markers update synchronously, and each filter's option counts recalculate against the
   current selection.

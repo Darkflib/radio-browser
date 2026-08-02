@@ -7,6 +7,7 @@ import {
   renderFilterOptions,
   showSkeletons,
   onGlobeStationClick,
+  onGlobeClusterClick,
 } from './ui.js';
 
 const stationCount = document.getElementById('station-count');
@@ -17,7 +18,7 @@ async function main() {
   showSkeletons(14);
 
   // Initialise globe
-  initGlobe(globeContainer, onGlobeStationClick);
+  initGlobe(globeContainer, onGlobeStationClick, onGlobeClusterClick);
 
   // Subscribe to state changes to keep globe in sync
   subscribe(({ type }) => {

@@ -71,6 +71,15 @@ const sleepModal     = document.getElementById('sleep-modal');
 const sleepOpts      = document.querySelectorAll('.sleep-opt');
 const cancelSleep    = document.getElementById('cancel-sleep');
 
+const globePopover   = document.getElementById('globe-popover');
+
+// Track the last pointer position so the globe cluster popover can open next to
+// the click (globe.gl's click callback gives the datum, not the DOM event).
+let lastPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+document.addEventListener('pointerdown', e => {
+  lastPointer = { x: e.clientX, y: e.clientY };
+}, true);
+
 // ─── Render station card ─────────────────────────────────────────────────────
 function renderFaviconImg(src, fallback = '📻') {
   if (src) {
@@ -475,6 +484,7 @@ document.addEventListener('keydown', e => {
     searchModal.classList.contains('hidden') ? openSearch() : closeSearch();
   }
   if (e.key === 'Escape') {
+    if (!globePopover.classList.contains('hidden')) { closeGlobePopover(); return; }
     if (!searchModal.classList.contains('hidden')) { closeSearch(); return; }
     if (!sleepModal.classList.contains('hidden')) { sleepModal.classList.add('hidden'); return; }
   }
@@ -650,6 +660,70 @@ export function onGlobeStationClick(uuid) {
   if (!station) return;
   playStation(station);
   scrollToCard(uuid);
+}
+
+// ─── Globe cluster click → disambiguation popover ─────────────────────────────
+// Dense stacks of co-located stations are rendered as one cluster dot; clicking
+// it opens a small picker listing every station at that spot.
+export function onGlobeClusterClick(stations) {
+  if (!stations || stations.length === 0) return;
+
+  globePopover.innerHTML = `
+    <div class="gp-header">${stations.length} stations here</div>
+    <div class="gp-list"></div>
+  `;
+  const list = globePopover.querySelector('.gp-list');
+
+  for (const station of stations) {
+    const item = document.createElement('div');
+    item.className = 'search-result-item';
+    const metaParts = [station.country, station.tags.split(',')[0]?.trim()].filter(Boolean);
+    item.innerHTML = `
+      <div class="sr-favicon">
+        ${station.favicon
+          ? `<img src="${escHtml(station.favicon)}" alt="" loading="lazy" onerror="this.parentElement.textContent='📻'">`
+          : '📻'}
+      </div>
+      <div>
+        <div class="sr-name">${escHtml(station.name)}</div>
+        <div class="sr-meta">${escHtml(metaParts.join(' · '))}</div>
+      </div>
+    `;
+    item.addEventListener('click', () => {
+      playStation(station);
+      closeGlobePopover();
+      scrollToCard(station.uuid);
+    });
+    list.appendChild(item);
+  }
+
+  globePopover.classList.remove('hidden');
+  positionGlobePopover();
+  // Attach the outside-click closer on the next tick so the click that opened
+  // the popover doesn't immediately dismiss it.
+  setTimeout(() => document.addEventListener('pointerdown', outsideCloseGlobePopover, true), 0);
+}
+
+function positionGlobePopover() {
+  const pad = 12;
+  const rect = globePopover.getBoundingClientRect();
+  let x = lastPointer.x + 12;
+  let y = lastPointer.y + 12;
+  if (x + rect.width + pad > window.innerWidth) x = window.innerWidth - rect.width - pad;
+  if (y + rect.height + pad > window.innerHeight) y = window.innerHeight - rect.height - pad;
+  globePopover.style.left = `${Math.max(pad, x)}px`;
+  globePopover.style.top = `${Math.max(pad, y)}px`;
+}
+
+function closeGlobePopover() {
+  if (globePopover.classList.contains('hidden')) return;
+  globePopover.classList.add('hidden');
+  globePopover.innerHTML = '';
+  document.removeEventListener('pointerdown', outsideCloseGlobePopover, true);
+}
+
+function outsideCloseGlobePopover(e) {
+  if (!globePopover.contains(e.target)) closeGlobePopover();
 }
 
 // ─── Skeleton loaders ─────────────────────────────────────────────────────────
