@@ -25,9 +25,44 @@
   --radius-lg: 12px;
   --player-h: 68px;
   --topbar-h: 52px;
+  /* Globe backdrop + material — overridden in dark mode so the globe module can
+     read them via getComputedStyle and stay in sync with the CSS theme. */
+  --globe-bg: radial-gradient(circle at 50% 42%, #eef2f7 0%, #e4e9f1 100%);
+  --globe-ocean: #d6e4f2;
+  --globe-land: rgba(148,163,184,0.22);
+  --globe-stroke: rgba(71,85,105,0.55);
+  --globe-atmosphere: #bfd3f2;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Dark theme ─────────────────────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  --bg: #0b0b0f;
+  --bg-2: #101014;
+  --bg-3: #1a1a20;
+  --border: #26262e;
+  --border-2: #34343e;
+  --text: #f4f4f5;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --accent: #f4f4f5;
+  --accent-hover: #d4d4d8;
+  --blue: #60a5fa;
+  --blue-light: #17233b;
+  --red: #f87171;
+  --green: #4ade80;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.6);
+  --globe-bg: radial-gradient(circle at 50% 42%, #14161c 0%, #0a0b0f 100%);
+  --globe-ocean: #10233c;
+  --globe-land: rgba(148,163,184,0.14);
+  --globe-stroke: rgba(148,163,184,0.42);
+  --globe-atmosphere: #1e3a5f;
+  color-scheme: dark;
 }
 
 html, body {
@@ -113,6 +148,8 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   background: var(--blue-light);
 }
 .icon-btn.small { padding: 4px 8px; }
+.icon-btn.icon-only { padding: 5px 7px; }
+.icon-btn:disabled { opacity: 0.55; cursor: default; pointer-events: none; }
 
 kbd {
   display: inline-flex;
@@ -321,6 +358,16 @@ select:focus { border-color: var(--accent); }
   border: 1px solid var(--border);
   border-radius: 3px;
 }
+.card-dist {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--blue);
+  padding: 2px 5px;
+  background: var(--blue-light);
+  border: 1px solid rgba(37,99,235,0.25);
+  border-radius: 3px;
+  white-space: nowrap;
+}
 .card-fav-btn {
   padding: 3px;
   color: var(--text-3);
@@ -356,8 +403,8 @@ select:focus { border-color: var(--accent); }
   overflow: hidden;
   position: relative;
   /* Fractionally cooler/darker than the white panels so the globe has a
-     subtle backdrop instead of vanishing into the page. */
-  background: radial-gradient(circle at 50% 42%, #eef2f7 0%, #e4e9f1 100%);
+     subtle backdrop instead of vanishing into the page. Theme-aware. */
+  background: var(--globe-bg);
 }
 
 #globe-container {

@@ -7,7 +7,10 @@ import {
   subscribe,
   setFilterCountry,
   setFilterGenre,
+  setFilterCodec,
   setShowFavoritesOnly,
+  setNearMe,
+  setUserLocation,
   setCurrentStation,
   setPlaying,
   toggleFavorite,
@@ -16,9 +19,18 @@ import {
   clearSleepTimer,
   getCountryOptions,
   getGenreOptions,
+  getCodecOptions,
 } from './store.js';
 
-import { flyToStation, refreshMarkerColors } from './globe.js';
+import {
+  flyToStation,
+  flyTo,
+  refreshMarkerColors,
+  applyGlobeTheme,
+  setUserLocationMarker,
+} from './globe.js';
+
+import { toggleTheme, isDark, onThemeChange, initTheme } from './theme.js';
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const stationList    = document.getElementById('station-list');
@@ -26,9 +38,14 @@ const listEmpty      = document.getElementById('list-empty');
 const stationCount   = document.getElementById('station-count');
 const filterCountry  = document.getElementById('filter-country');
 const filterGenre    = document.getElementById('filter-genre');
+const filterCodec    = document.getElementById('filter-codec');
 const clearFiltersBtn = document.getElementById('clear-filters');
 const favToggle      = document.getElementById('favorites-toggle');
 const randomBtn      = document.getElementById('random-btn');
+const nearmeBtn      = document.getElementById('nearme-btn');
+const themeToggle    = document.getElementById('theme-toggle');
+const themeIconSun   = document.getElementById('theme-icon-sun');
+const themeIconMoon  = document.getElementById('theme-icon-moon');
 
 const player         = document.getElementById('player');
 const playerImg      = document.getElementById('player-img');
@@ -80,6 +97,7 @@ function createStationCard(station) {
       <div class="card-meta">${escHtml(metaParts.join(' · '))}</div>
     </div>
     <div class="card-right">
+      <span class="card-dist" style="display:none"></span>
       <span class="card-codec">${escHtml(station.codec)}</span>
       <button class="card-fav-btn${fav ? ' active' : ''}" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" data-uuid="${escHtml(station.uuid)}">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="${fav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -103,6 +121,26 @@ function createStationCard(station) {
 // Keep a rendered card map so we can update without full re-render
 const cardMap = new Map();
 
+// Format a distance (km) compactly for the card badge.
+function formatDistance(km) {
+  if (km == null || isNaN(km)) return '';
+  if (km < 10) return `${km.toFixed(1)} km`;
+  if (km < 1000) return `${Math.round(km)} km`;
+  return `${Math.round(km / 100) / 10}k km`;
+}
+
+// Reflect a station's current distance annotation onto its card badge.
+function updateCardDistance(card, station) {
+  const el = card.querySelector('.card-dist');
+  if (!el) return;
+  if (station.distanceKm != null) {
+    el.textContent = formatDistance(station.distanceKm);
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 export function renderStationList(stations) {
   const state = getState();
   stationCount.textContent = `${stations.length} station${stations.length !== 1 ? 's' : ''}`;
@@ -123,10 +161,12 @@ export function renderStationList(stations) {
       const card = cardMap.get(station.uuid);
       // Update playing state
       card.classList.toggle('playing', state.currentStation?.uuid === station.uuid && state.isPlaying);
+      updateCardDistance(card, station);
       fragment.appendChild(card);
     } else {
       const card = createStationCard(station);
       card.classList.toggle('playing', state.currentStation?.uuid === station.uuid && state.isPlaying);
+      updateCardDistance(card, station);
       cardMap.set(station.uuid, card);
       fragment.appendChild(card);
     }
@@ -143,9 +183,11 @@ export function renderFilterOptions() {
   const state = getState();
   const countries = getCountryOptions();
   const genres = getGenreOptions();
+  const codecs = getCodecOptions();
 
   const prevCountry = filterCountry.value;
   const prevGenre = filterGenre.value;
+  const prevCodec = filterCodec.value;
 
   // Country select
   filterCountry.innerHTML = '<option value="">All countries</option>';
@@ -167,26 +209,127 @@ export function renderFilterOptions() {
     filterGenre.appendChild(opt);
   }
 
-  const hasFilter = state.filterCountry || state.filterGenre || state.showFavoritesOnly;
+  // Codec select
+  filterCodec.innerHTML = '<option value="">All codecs</option>';
+  for (const { codec, count } of codecs) {
+    const opt = document.createElement('option');
+    opt.value = codec;
+    opt.textContent = `${codec} (${count})`;
+    if (codec === prevCodec) opt.selected = true;
+    filterCodec.appendChild(opt);
+  }
+
+  const hasFilter =
+    state.filterCountry || state.filterGenre || state.filterCodec ||
+    state.showFavoritesOnly || state.nearMe;
   clearFiltersBtn.style.display = hasFilter ? 'block' : 'none';
 }
 
 filterCountry.addEventListener('change', () => setFilterCountry(filterCountry.value));
 filterGenre.addEventListener('change', () => setFilterGenre(filterGenre.value));
+filterCodec.addEventListener('change', () => setFilterCodec(filterCodec.value));
 
 clearFiltersBtn.addEventListener('click', () => {
   filterCountry.value = '';
   filterGenre.value = '';
+  filterCodec.value = '';
   setFilterCountry('');
   setFilterGenre('');
+  setFilterCodec('');
   setShowFavoritesOnly(false);
   favToggle.classList.remove('active');
+  disableNearMe();
 });
 
 favToggle.addEventListener('click', () => {
   const next = !getState().showFavoritesOnly;
   setShowFavoritesOnly(next);
   favToggle.classList.toggle('active', next);
+});
+
+// ─── Near me (geolocation) ─────────────────────────────────────────────────
+const nearmeLabel = nearmeBtn.querySelector('span');
+
+function setNearmeLabel(text) {
+  if (nearmeLabel) nearmeLabel.textContent = text;
+}
+
+function disableNearMe() {
+  setNearMe(false);
+  nearmeBtn.classList.remove('active');
+  nearmeBtn.disabled = false;
+  setNearmeLabel('Near Me');
+  setUserLocationMarker(null);
+}
+
+function enableNearMe() {
+  const state = getState();
+
+  // If we already have the user's location, just re-activate instantly.
+  if (state.userLocation) {
+    setNearMe(true);
+    nearmeBtn.classList.add('active');
+    setUserLocationMarker(state.userLocation.lat, state.userLocation.lng);
+    flyTo(state.userLocation.lat, state.userLocation.lng, 1.8);
+    return;
+  }
+
+  if (!('geolocation' in navigator)) {
+    setNearmeLabel('Unavailable');
+    setTimeout(() => setNearmeLabel('Near Me'), 2000);
+    return;
+  }
+
+  nearmeBtn.disabled = true;
+  setNearmeLabel('Locating…');
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setUserLocation(loc);      // stores + re-applies filters (sorts by distance)
+      setNearMe(true);
+      nearmeBtn.disabled = false;
+      nearmeBtn.classList.add('active');
+      setNearmeLabel('Near Me');
+      setUserLocationMarker(loc.lat, loc.lng);
+      flyTo(loc.lat, loc.lng, 1.8);
+    },
+    () => {
+      nearmeBtn.disabled = false;
+      setNearmeLabel('Denied');
+      setTimeout(() => setNearmeLabel('Near Me'), 2000);
+    },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60 * 1000 }
+  );
+}
+
+nearmeBtn.addEventListener('click', () => {
+  if (getState().nearMe) {
+    disableNearMe();
+  } else {
+    enableNearMe();
+  }
+});
+
+// ─── Theme toggle ──────────────────────────────────────────────────────────
+function syncThemeIcon() {
+  const dark = isDark();
+  // Show the icon for the theme you'd switch *to*.
+  themeIconSun.style.display = dark ? '' : 'none';
+  themeIconMoon.style.display = dark ? 'none' : '';
+  themeToggle.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+}
+
+initTheme();
+syncThemeIcon();
+
+themeToggle.addEventListener('click', () => {
+  toggleTheme();
+});
+
+onThemeChange(() => {
+  syncThemeIcon();
+  applyGlobeTheme();
 });
 
 // ─── Playback ─────────────────────────────────────────────────────────────────
