@@ -200,7 +200,9 @@ export function initGlobe(container, onClickCb, onClusterClickCb) {
     controls.autoRotateSpeed = 0.35;
     controls.enableDamping = true;
     controls.dampingFactor = 0.1;
-    controls.minDistance = 180;
+    // Allow zooming in close to inspect a city's stations (globe radius is 100,
+    // so ~110 sits just above the surface) while still blocking clipping through.
+    controls.minDistance = 110;
     // Stop auto-rotation on first user interaction.
     const stopRotate = () => { controls.autoRotate = false; };
     controls.addEventListener('start', stopRotate);
