@@ -20,9 +20,16 @@ Custom CSS, the Inter typeface, and a minimalist white aesthetic (Linear/Vercel 
   dots, with names and details in hover tooltips. Clicking a dot starts playback and
   highlights the matching card in the list (and vice versa). The base map is bundled, so
   the globe works offline.
-- **Filters** — filter by country and genre. The station count, list, and globe markers
-  update synchronously, and each filter's option counts recalculate against the current
-  selection.
+- **Filters** — filter by country, genre, and codec. The station count, list, and globe
+  markers update synchronously, and each filter's option counts recalculate against the
+  current selection.
+- **Near me** — the toolbar location button asks for your position (via the browser
+  Geolocation API) and re-orders the list by distance, showing a distance badge on each
+  station and dropping a pulsing "you are here" ring on the globe. Nothing is sent
+  anywhere — the coordinates never leave the page.
+- **Dark mode** — a toolbar toggle switches between light and dark themes (globe
+  included). The choice is remembered in `localStorage`, and the app follows your OS
+  preference until you pick one explicitly.
 - **Search** — a ⌘K / Ctrl-K command palette with keyboard navigation.
 - **Random station** — the toolbar shuffle button (or the `R` shortcut) plays a random
   station from the current filtered selection.

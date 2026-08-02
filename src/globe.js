@@ -31,6 +31,22 @@ const COLORS = {
   favorite: '#f59e0b', // amber
 };
 
+// Read a themed colour from the CSS custom properties so the globe stays in
+// sync with the active light/dark theme.
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
+function themeColors() {
+  return {
+    ocean: cssVar('--globe-ocean', '#d6e4f2'),
+    land: cssVar('--globe-land', 'rgba(148,163,184,0.22)'),
+    stroke: cssVar('--globe-stroke', 'rgba(71,85,105,0.55)'),
+    atmosphere: cssVar('--globe-atmosphere', '#bfd3f2'),
+  };
+}
+
 // Country polygons (GeoJSON features) derived from bundled topojson.
 const COUNTRIES = feature(worldData, worldData.objects.countries).features;
 
@@ -73,22 +89,24 @@ export function initGlobe(container, onClickCb) {
 
   globeInstance = Globe()(container);
 
+  const theme = themeColors();
+
   globeInstance
-    // No texture — a clean solid sphere fits the white/minimalist theme.
+    // No texture — a clean solid sphere fits the minimalist theme.
     .globeImageUrl(null)
     .backgroundColor('rgba(0,0,0,0)')
     .showGlobe(true)
     .showGraticules(false)
     .showAtmosphere(true)
-    .atmosphereColor('#bfd3f2')
+    .atmosphereColor(theme.atmosphere)
     .atmosphereAltitude(0.16)
     // Country landmasses as real filled polygons: accurate borders, subtle
-    // slate fill on the light sphere. Fast (a few hundred shapes) and crisp,
+    // slate fill on the sphere. Fast (a few hundred shapes) and crisp,
     // unlike dotted hex-polygons which blur country outlines.
     .polygonsData(COUNTRIES)
-    .polygonCapColor(() => 'rgba(148,163,184,0.22)')
+    .polygonCapColor(() => themeColors().land)
     .polygonSideColor(() => 'rgba(0,0,0,0)')
-    .polygonStrokeColor(() => 'rgba(71,85,105,0.55)')
+    .polygonStrokeColor(() => themeColors().stroke)
     .polygonAltitude(0.006)
     // Station dots — kept small and low-poly so hundreds render smoothly.
     // pointsMerge stays false so each dot remains hover/click interactive.
@@ -109,13 +127,21 @@ export function initGlobe(container, onClickCb) {
     `)
     .onPointClick(d => {
       onStationClick?.(d.uuid);
-    });
+    })
+    // "You are here" ring at the user's geolocation (populated on demand).
+    .ringsData([])
+    .ringLat(d => d.lat)
+    .ringLng(d => d.lng)
+    .ringColor(() => t => `rgba(37,99,235,${1 - t})`)
+    .ringMaxRadius(4)
+    .ringPropagationSpeed(1.4)
+    .ringRepeatPeriod(900);
 
-  // Softly-tinted ocean sphere — a faint cool blue so sea reads distinctly
-  // from land without breaking the clean, minimalist look.
+  // Softly-tinted ocean sphere — reads distinctly from land without breaking
+  // the clean, minimalist look. Colour follows the active theme.
   const mat = globeInstance.globeMaterial();
   if (mat) {
-    mat.color?.set?.('#d6e4f2');
+    mat.color?.set?.(theme.ocean);
     if ('shininess' in mat) mat.shininess = 4;
   }
 
@@ -170,6 +196,45 @@ export function refreshMarkerColors(playingUuid) {
   const current = globeInstance.pointsData();
   current.forEach(m => { m.color = getMarkerColor(m.uuid); });
   globeInstance.pointsData([...current]);
+}
+
+/**
+ * Re-apply themed colours to the globe (ocean, land, borders, atmosphere).
+ * Called when the user toggles light/dark mode.
+ */
+export function applyGlobeTheme() {
+  if (!globeInstance) return;
+  const theme = themeColors();
+  const mat = globeInstance.globeMaterial();
+  if (mat) mat.color?.set?.(theme.ocean);
+  globeInstance.atmosphereColor(theme.atmosphere);
+  // Force the polygon colour accessors (which read live CSS vars) to re-run.
+  globeInstance
+    .polygonCapColor(() => themeColors().land)
+    .polygonStrokeColor(() => themeColors().stroke);
+}
+
+/**
+ * Show (or clear) a pulsing "you are here" ring at the given coordinates.
+ * Pass null to remove it.
+ */
+export function setUserLocationMarker(lat, lng) {
+  if (!globeInstance) return;
+  if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) {
+    globeInstance.ringsData([]);
+    return;
+  }
+  globeInstance.ringsData([{ lat, lng }]);
+}
+
+/**
+ * Fly the camera to an arbitrary location.
+ */
+export function flyTo(lat, lng, altitude = 1.6) {
+  if (!globeInstance) return;
+  const controls = globeInstance.controls();
+  if (controls) controls.autoRotate = false;
+  globeInstance.pointOfView({ lat, lng, altitude }, 900);
 }
 
 /**
