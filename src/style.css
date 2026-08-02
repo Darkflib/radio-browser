@@ -481,7 +481,9 @@ select:focus { border-color: var(--accent); }
   height: 36px;
   border-radius: 50%;
   background: var(--accent);
-  color: #fff;
+  /* Icon uses the page background colour so it contrasts with the accent-filled
+     circle in both themes (white on dark in light mode, dark on light in dark). */
+  color: var(--bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -629,6 +631,39 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 11px;
   color: var(--text-3);
 }
+
+/* ─── Globe cluster popover ──────────────────────────────────────────────── */
+.globe-popover {
+  position: fixed;
+  z-index: 90;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.globe-popover.hidden { display: none; }
+.globe-popover .gp-header {
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.globe-popover .gp-list {
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  padding: 6px;
+}
+.globe-popover .gp-list::-webkit-scrollbar { width: 4px; }
+.globe-popover .gp-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* Sleep modal */
 .sleep-box {
