@@ -33,8 +33,11 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 export function approxDistanceKm(lat1, lng1, lat2, lng2) {
   const kmPerDeg = 111.32;
   const dLat = (lat2 - lat1) * kmPerDeg;
+  // Normalise the longitude delta into [-180, 180) so points either side of the
+  // antimeridian measure the short way around the globe, not the long way.
+  const dLngDeg = ((lng2 - lng1 + 180) % 360 + 360) % 360 - 180;
   const midLat = ((lat1 + lat2) / 2) * (Math.PI / 180);
-  const dLng = (lng2 - lng1) * kmPerDeg * Math.cos(midLat);
+  const dLng = dLngDeg * kmPerDeg * Math.cos(midLat);
   return Math.hypot(dLat, dLng);
 }
 
