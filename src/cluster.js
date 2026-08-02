@@ -18,9 +18,10 @@
  */
 
 // Stations within this distance of a cluster's seed are treated as co-located.
-// City coordinates are approximate, so ~2 km captures "same place" (and points
-// a mile or so apart) without merging genuinely distinct locations.
-export const GROUP_RADIUS_KM = 2;
+// City coordinates are approximate and cluster tightly, so ~5 km groups nearby
+// stations that would otherwise render almost on top of each other; grouped
+// stations then fan out (or cluster) so each stays selectable.
+export const GROUP_RADIUS_KM = 5;
 // Groups up to this size fan out; larger ones become a single cluster node.
 export const SPREAD_LIMIT = 8;
 
