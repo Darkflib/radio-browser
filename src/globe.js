@@ -16,6 +16,7 @@ import Globe from 'globe.gl';
 import { feature } from 'topojson-client';
 import worldData from 'world-atlas/countries-110m.json';
 import { getState } from './store.js';
+import { layoutStations } from './cluster.js';
 
 let globeInstance = null;
 
@@ -23,6 +24,7 @@ let globeInstance = null;
 const markerCache = new Map();
 
 let onStationClick = null;
+let onClusterClick = null;
 let currentPlayingUuid = null;
 
 const COLORS = {
@@ -57,35 +59,70 @@ function getMarkerColor(uuid) {
   return COLORS.default;
 }
 
+// A cluster takes on the "strongest" state of its members: playing > favorite.
+function clusterColor(stations) {
+  const state = getState();
+  if (stations.some(s => s.uuid === currentPlayingUuid)) return COLORS.playing;
+  if (stations.some(s => state.favorites.has(s.uuid))) return COLORS.favorite;
+  return COLORS.default;
+}
+
 /**
- * Build or retrieve a marker for a station.
+ * Build or retrieve a station marker, positioned at the given display coords
+ * (which may be offset from the true location when fanned out of a stack).
  */
-function getMarker(station) {
-  if (markerCache.has(station.uuid)) {
-    const m = markerCache.get(station.uuid);
-    m.color = getMarkerColor(station.uuid);
-    return m;
+function stationMarker(station, lat, lng) {
+  let m = markerCache.get(station.uuid);
+  if (!m) {
+    m = { type: 'station', uuid: station.uuid };
+    markerCache.set(station.uuid, m);
   }
-  const m = {
-    uuid: station.uuid,
-    lat: station.lat,
-    lng: station.lng,
-    name: station.name,
-    country: station.country,
-    codec: station.codec,
-    bitrate: station.bitrate,
-    color: getMarkerColor(station.uuid),
-    size: 0.28,
-  };
-  markerCache.set(station.uuid, m);
+  m.lat = lat;
+  m.lng = lng;
+  m.name = station.name;
+  m.country = station.country;
+  m.codec = station.codec;
+  m.bitrate = station.bitrate;
+  m.color = getMarkerColor(station.uuid);
+  m.size = 0.28;
   return m;
+}
+
+/**
+ * Build a cluster marker for a dense stack of co-located stations. Sized up a
+ * little with the count; clicking it opens a picker listing every member.
+ */
+function clusterMarker(stations, lat, lng) {
+  return {
+    type: 'cluster',
+    lat,
+    lng,
+    count: stations.length,
+    stations,
+    country: stations[0]?.country || '',
+    color: clusterColor(stations),
+    size: Math.min(0.62, 0.32 + stations.length * 0.012),
+  };
+}
+
+/**
+ * Turn the filtered station list into globe points: singletons as-is, small
+ * co-located groups fanned into a rosette, dense groups as one cluster marker.
+ */
+function buildPoints(stations) {
+  return layoutStations(stations).map(node =>
+    node.kind === 'cluster'
+      ? clusterMarker(node.stations, node.lat, node.lng)
+      : stationMarker(node.station, node.lat, node.lng)
+  );
 }
 
 /**
  * Initialise the globe in the given DOM element.
  */
-export function initGlobe(container, onClickCb) {
+export function initGlobe(container, onClickCb, onClusterClickCb) {
   onStationClick = onClickCb;
+  onClusterClick = onClusterClickCb;
 
   globeInstance = Globe()(container);
 
@@ -119,14 +156,25 @@ export function initGlobe(container, onClickCb) {
     .pointResolution(6)
     .pointsMerge(false)
     // Tooltip (names/details shown only on hover — never rendered onto the globe)
-    .pointLabel(d => `
+    .pointLabel(d => d.type === 'cluster'
+      ? `
+      <div class="globe-tooltip">
+        <strong>${d.count} stations</strong>
+        <span>${escHtml(d.country)}${d.country ? ' · ' : ''}click to list</span>
+      </div>
+    `
+      : `
       <div class="globe-tooltip">
         <strong>${escHtml(d.name)}</strong>
         <span>${escHtml(d.country)}${d.codec ? ' · ' + escHtml(d.codec) : ''}${d.bitrate ? ' · ' + d.bitrate + ' kbps' : ''}</span>
       </div>
     `)
     .onPointClick(d => {
-      onStationClick?.(d.uuid);
+      if (d.type === 'cluster') {
+        onClusterClick?.(d.stations);
+      } else {
+        onStationClick?.(d.uuid);
+      }
     })
     // "You are here" ring at the user's geolocation (populated on demand).
     .ringsData([])
@@ -174,17 +222,13 @@ export function initGlobe(container, onClickCb) {
 }
 
 /**
- * Update globe markers from the filtered station list.
- * Uses cached markers so dots don't disappear on filter toggle.
+ * Update globe markers from the filtered station list. Co-located stations are
+ * fanned out or clustered so every station stays selectable. Station markers
+ * are cached by uuid so dots survive filter toggles.
  */
 export function updateGlobeMarkers(stations) {
   if (!globeInstance) return;
-  const markers = stations.map(s => {
-    const m = getMarker(s);
-    m.color = getMarkerColor(s.uuid);
-    return m;
-  });
-  globeInstance.pointsData(markers);
+  globeInstance.pointsData(buildPoints(stations));
 }
 
 /**
@@ -194,7 +238,9 @@ export function refreshMarkerColors(playingUuid) {
   if (!globeInstance) return;
   currentPlayingUuid = playingUuid ?? null;
   const current = globeInstance.pointsData();
-  current.forEach(m => { m.color = getMarkerColor(m.uuid); });
+  current.forEach(m => {
+    m.color = m.type === 'cluster' ? clusterColor(m.stations) : getMarkerColor(m.uuid);
+  });
   globeInstance.pointsData([...current]);
 }
 
