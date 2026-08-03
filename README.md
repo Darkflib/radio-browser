@@ -38,6 +38,10 @@ Custom CSS, the Inter typeface, and a minimalist white aesthetic (Linear/Vercel 
   station from the current filtered selection.
 - **Playback bar** — play/pause, volume, favorite toggle, and a sleep timer.
 - **Favorites** — saved in `localStorage` and available as a dedicated filter.
+- **Share & deep-link** — the playing station is reflected in the URL as
+  `?station=<uuid>`, and the player's share button copies that link (or opens the
+  native share sheet on mobile). Opening a shared link selects and plays that
+  station on load, fetching it by UUID if it isn't in the cached top set.
 
 ## Development
 

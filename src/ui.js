@@ -59,8 +59,10 @@ const sleepTimerBtn  = document.getElementById('sleep-timer-btn');
 const sleepLabel     = document.getElementById('sleep-label');
 const favBtn         = document.getElementById('fav-btn');
 const favIcon        = document.getElementById('fav-icon');
+const shareBtn       = document.getElementById('share-btn');
 const closePlayerBtn = document.getElementById('close-player-btn');
 const audioEl        = document.getElementById('audio-el');
+const toastEl        = document.getElementById('toast');
 
 const searchBtn      = document.getElementById('search-btn');
 const searchModal    = document.getElementById('search-modal');
@@ -342,6 +344,21 @@ onThemeChange(() => {
 });
 
 // ─── Playback ─────────────────────────────────────────────────────────────────
+/**
+ * Start playback and keep isPlaying in sync with what actually happens. We show
+ * "playing" optimistically for responsiveness, but if play() is rejected — most
+ * commonly when a deep-linked station tries to autoplay on load without a user
+ * gesture — we revert to paused so the UI shows a play (not pause) icon and one
+ * click starts it, rather than requiring two.
+ */
+function playAudio() {
+  setPlaying(true);
+  const p = audioEl.play();
+  if (p && typeof p.catch === 'function') {
+    p.catch(() => setPlaying(false));
+  }
+}
+
 export function playStation(station) {
   const state = getState();
 
@@ -351,8 +368,7 @@ export function playStation(station) {
       audioEl.pause();
       setPlaying(false);
     } else {
-      audioEl.play().catch(() => {});
-      setPlaying(true);
+      playAudio();
     }
     return;
   }
@@ -361,11 +377,103 @@ export function playStation(station) {
   setCurrentStation(station);
   audioEl.src = station.url;
   audioEl.volume = parseFloat(volumeSlider.value);
-  audioEl.play().catch(() => {});
-  setPlaying(true);
+  playAudio();
+
+  // Reflect the current station in the URL so the address bar is shareable.
+  updateShareUrl(station);
 
   // Fly globe camera
   flyToStation(station);
+}
+
+// ─── Sharing & deep-links ─────────────────────────────────────────────────────
+// Build an absolute URL that deep-links to a station via ?station=<uuid>.
+export function stationShareUrl(station) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('station', station.uuid);
+  url.hash = '';
+  return url.toString();
+}
+
+// Keep the address bar in sync with the playing station (no history entry).
+function updateShareUrl(station) {
+  const url = new URL(window.location.href);
+  if (station) url.searchParams.set('station', station.uuid);
+  else url.searchParams.delete('station');
+  window.history.replaceState(null, '', url);
+}
+
+/** Copy text to the clipboard, returning whether it succeeded. */
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback for browsers without the async clipboard API (or non-secure ctx).
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+shareBtn.addEventListener('click', async () => {
+  const station = getState().currentStation;
+  if (!station) return;
+  const url = stationShareUrl(station);
+
+  // Prefer the native share sheet where available (mobile), else copy the link.
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: station.name, text: `Listen to ${station.name}`, url });
+      return;
+    } catch (err) {
+      // User dismissed the share sheet — don't copy on their behalf.
+      if (err?.name === 'AbortError') return;
+      // Any other share failure falls through to the clipboard copy below.
+    }
+  }
+  showToast(await copyText(url) ? 'Link copied to clipboard' : 'Could not copy link');
+});
+
+// Open a station from a deep-link (?station=<uuid>): select, play, reveal.
+export function openStationByUuid(uuid) {
+  const station =
+    getState().filtered.find(s => s.uuid === uuid) ||
+    getState().allStations.find(s => s.uuid === uuid);
+  if (!station) return false;
+  playStation(station);
+  scrollToCard(station.uuid);
+  return true;
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+let toastHideTimer;
+/** Show a transient status toast (e.g. "Link copied"), auto-dismissed after ~2s. */
+export function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.remove('hidden');
+  // Force reflow so re-triggering restarts the transition.
+  void toastEl.offsetWidth;
+  toastEl.classList.add('show');
+  // Clear both timers so a rapid re-trigger can't let a stale hide-callback
+  // dismiss the newly shown toast mid-display.
+  clearTimeout(toastTimer);
+  clearTimeout(toastHideTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.classList.remove('show');
+    toastHideTimer = setTimeout(() => toastEl.classList.add('hidden'), 200);
+  }, 2200);
 }
 
 // Pick a random station from the current filtered list (falling back to all
@@ -436,8 +544,7 @@ playPauseBtn.addEventListener('click', () => {
     audioEl.pause();
     setPlaying(false);
   } else {
-    audioEl.play().catch(() => {});
-    setPlaying(true);
+    playAudio();
   }
 });
 
@@ -456,6 +563,7 @@ closePlayerBtn.addEventListener('click', () => {
   setPlaying(false);
   player.classList.add('hidden');
   refreshMarkerColors(null);
+  updateShareUrl(null);
 });
 
 favBtn.addEventListener('click', () => {

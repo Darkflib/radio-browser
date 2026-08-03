@@ -1,6 +1,6 @@
 import './style.css';
-import { fetchStations } from './api.js';
-import { setStations, getState, subscribe } from './store.js';
+import { fetchStations, fetchStationByUuid } from './api.js';
+import { setStations, addStationToTop, getState, subscribe } from './store.js';
 import { initGlobe, updateGlobeMarkers } from './globe.js';
 import {
   renderStationList,
@@ -8,6 +8,7 @@ import {
   showSkeletons,
   onGlobeStationClick,
   onGlobeClusterClick,
+  openStationByUuid,
 } from './ui.js';
 
 const stationCount = document.getElementById('station-count');
@@ -41,6 +42,9 @@ async function main() {
     renderStationList(filtered);
     renderFilterOptions();
     updateGlobeMarkers(filtered);
+
+    // Deep-link: ?station=<uuid> selects and plays that station on load.
+    await handleDeepLink();
   } catch (err) {
     console.error('Failed to load stations:', err);
     stationCount.textContent = 'Failed to load';
@@ -48,6 +52,27 @@ async function main() {
     document.getElementById('list-empty').textContent =
       'Could not load stations. Please check your connection and refresh.';
   }
+}
+
+/**
+ * If the page was opened with ?station=<uuid>, select and play that station.
+ * Falls back to fetching the station by UUID when it isn't in the cached set.
+ */
+async function handleDeepLink() {
+  const uuid = new URLSearchParams(window.location.search).get('station');
+  if (!uuid) return;
+
+  if (openStationByUuid(uuid)) return;
+
+  // Not in the loaded set — try resolving it directly, then inject and open.
+  const station = await fetchStationByUuid(uuid);
+  if (!station) return;
+  addStationToTop(station);
+  const { filtered } = getState();
+  renderStationList(filtered);
+  renderFilterOptions();
+  updateGlobeMarkers(filtered);
+  openStationByUuid(uuid);
 }
 
 main();

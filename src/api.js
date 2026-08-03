@@ -151,3 +151,25 @@ export async function fetchStations(onProgress, { force = false } = {}) {
 
   return healthy;
 }
+
+/**
+ * Resolve a single station by its UUID (for shared deep-links whose station
+ * isn't in the cached top set). Returns a normalised station, or null if it
+ * can't be found or isn't playable/placeable (no HTTPS stream or coordinates).
+ */
+export async function fetchStationByUuid(uuid) {
+  if (!uuid) return null;
+  try {
+    const host = await resolveApiHost();
+    const res = await fetchWithRetry(
+      `${host}/json/stations/byuuid/${encodeURIComponent(uuid)}`,
+      { headers: { 'User-Agent': 'RadioBrowserApp/1.0', 'Content-Type': 'application/json' } }
+    );
+    const arr = await res.json();
+    const raw = Array.isArray(arr) ? arr[0] : null;
+    if (!raw || !isHealthy(raw)) return null;
+    return normalise(raw);
+  } catch {
+    return null;
+  }
+}
