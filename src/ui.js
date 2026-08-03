@@ -344,6 +344,21 @@ onThemeChange(() => {
 });
 
 // ─── Playback ─────────────────────────────────────────────────────────────────
+/**
+ * Start playback and keep isPlaying in sync with what actually happens. We show
+ * "playing" optimistically for responsiveness, but if play() is rejected — most
+ * commonly when a deep-linked station tries to autoplay on load without a user
+ * gesture — we revert to paused so the UI shows a play (not pause) icon and one
+ * click starts it, rather than requiring two.
+ */
+function playAudio() {
+  setPlaying(true);
+  const p = audioEl.play();
+  if (p && typeof p.catch === 'function') {
+    p.catch(() => setPlaying(false));
+  }
+}
+
 export function playStation(station) {
   const state = getState();
 
@@ -353,8 +368,7 @@ export function playStation(station) {
       audioEl.pause();
       setPlaying(false);
     } else {
-      audioEl.play().catch(() => {});
-      setPlaying(true);
+      playAudio();
     }
     return;
   }
@@ -363,8 +377,7 @@ export function playStation(station) {
   setCurrentStation(station);
   audioEl.src = station.url;
   audioEl.volume = parseFloat(volumeSlider.value);
-  audioEl.play().catch(() => {});
-  setPlaying(true);
+  playAudio();
 
   // Reflect the current station in the URL so the address bar is shareable.
   updateShareUrl(station);
@@ -390,6 +403,7 @@ function updateShareUrl(station) {
   window.history.replaceState(null, '', url);
 }
 
+/** Copy text to the clipboard, returning whether it succeeded. */
 async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -422,8 +436,10 @@ shareBtn.addEventListener('click', async () => {
     try {
       await navigator.share({ title: station.name, text: `Listen to ${station.name}`, url });
       return;
-    } catch {
-      // User cancelled or share failed — fall through to clipboard copy.
+    } catch (err) {
+      // User dismissed the share sheet — don't copy on their behalf.
+      if (err?.name === 'AbortError') return;
+      // Any other share failure falls through to the clipboard copy below.
     }
   }
   showToast(await copyText(url) ? 'Link copied to clipboard' : 'Could not copy link');
@@ -442,16 +458,21 @@ export function openStationByUuid(uuid) {
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
+let toastHideTimer;
+/** Show a transient status toast (e.g. "Link copied"), auto-dismissed after ~2s. */
 export function showToast(message) {
   toastEl.textContent = message;
   toastEl.classList.remove('hidden');
   // Force reflow so re-triggering restarts the transition.
   void toastEl.offsetWidth;
   toastEl.classList.add('show');
+  // Clear both timers so a rapid re-trigger can't let a stale hide-callback
+  // dismiss the newly shown toast mid-display.
   clearTimeout(toastTimer);
+  clearTimeout(toastHideTimer);
   toastTimer = setTimeout(() => {
     toastEl.classList.remove('show');
-    setTimeout(() => toastEl.classList.add('hidden'), 200);
+    toastHideTimer = setTimeout(() => toastEl.classList.add('hidden'), 200);
   }, 2200);
 }
 
@@ -523,8 +544,7 @@ playPauseBtn.addEventListener('click', () => {
     audioEl.pause();
     setPlaying(false);
   } else {
-    audioEl.play().catch(() => {});
-    setPlaying(true);
+    playAudio();
   }
 });
 
