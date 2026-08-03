@@ -16,13 +16,15 @@ export default defineConfig({
       // Only the pure/business-logic modules are held to a bar. The globe/UI
       // layers are WebGL- and DOM-heavy and are exercised behaviourally by the
       // Playwright e2e suite instead of by coverage.
-      include: ['src/api.js', 'src/store.js', 'src/cluster.js'],
+      include: ['src/api.js', 'src/store.js', 'src/cluster.js', 'src/tooltip.js'],
       thresholds: {
+        // Enforce the floors PER FILE, not on the aggregate — otherwise a
+        // well-covered module could mask an under-tested risk-bearing one.
+        perFile: true,
         // Per the handoff: api/store/cluster at 85% lines/functions, 75% branches.
         lines: 85,
         functions: 85,
         branches: 75,
-        // Overall project floor (only the included files count here).
         statements: 85,
       },
     },
