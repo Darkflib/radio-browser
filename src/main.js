@@ -62,7 +62,7 @@ async function handleDeepLink() {
   const uuid = new URLSearchParams(window.location.search).get('station');
   if (!uuid) return;
 
-  if (openStationByUuid(uuid)) return;
+  if (await openStationByUuid(uuid)) return;
 
   // Not in the loaded set — try resolving it directly, then inject and open.
   const station = await fetchStationByUuid(uuid);
@@ -72,7 +72,7 @@ async function handleDeepLink() {
   renderStationList(filtered);
   renderFilterOptions();
   updateGlobeMarkers(filtered);
-  openStationByUuid(uuid);
+  await openStationByUuid(uuid);
 }
 
 main();

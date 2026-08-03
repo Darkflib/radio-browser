@@ -41,7 +41,9 @@ Custom CSS, the Inter typeface, and a minimalist white aesthetic (Linear/Vercel 
 - **Share & deep-link** — the playing station is reflected in the URL as
   `?station=<uuid>`, and the player's share button copies that link (or opens the
   native share sheet on mobile). Opening a shared link selects and plays that
-  station on load, fetching it by UUID if it isn't in the cached top set.
+  station on load, fetching it by UUID if it isn't in the cached top set. When the
+  browser blocks autoplay on load (no user gesture yet), a small **Play / Dismiss**
+  prompt appears so a single click starts playback.
 
 ## Development
 

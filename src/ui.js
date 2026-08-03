@@ -73,6 +73,11 @@ const sleepModal     = document.getElementById('sleep-modal');
 const sleepOpts      = document.querySelectorAll('.sleep-opt');
 const cancelSleep    = document.getElementById('cancel-sleep');
 
+const autoplayModal    = document.getElementById('autoplay-modal');
+const autoplayName     = document.getElementById('autoplay-station-name');
+const autoplayPlayBtn  = document.getElementById('autoplay-play');
+const autoplayDismissBtn = document.getElementById('autoplay-dismiss');
+
 const globePopover   = document.getElementById('globe-popover');
 
 // Track the last pointer position so the globe cluster popover can open next to
@@ -351,12 +356,19 @@ onThemeChange(() => {
  * gesture — we revert to paused so the UI shows a play (not pause) icon and one
  * click starts it, rather than requiring two.
  */
+// Returns a promise resolving to { started, reason }. `reason` is the DOMException
+// name on failure — notably 'NotAllowedError' when the browser blocks autoplay
+// because there was no user gesture (the deep-link-on-load case).
 function playAudio() {
   setPlaying(true);
   const p = audioEl.play();
-  if (p && typeof p.catch === 'function') {
-    p.catch(() => setPlaying(false));
+  if (p && typeof p.then === 'function') {
+    return p.then(
+      () => ({ started: true }),
+      err => { setPlaying(false); return { started: false, reason: err?.name }; }
+    );
   }
+  return Promise.resolve({ started: true });
 }
 
 export function playStation(station) {
@@ -367,23 +379,24 @@ export function playStation(station) {
     if (state.isPlaying) {
       audioEl.pause();
       setPlaying(false);
-    } else {
-      playAudio();
+      return Promise.resolve({ started: false, reason: 'paused' });
     }
-    return;
+    return playAudio();
   }
 
   // Load new station
   setCurrentStation(station);
   audioEl.src = station.url;
   audioEl.volume = parseFloat(volumeSlider.value);
-  playAudio();
+  const result = playAudio();
 
   // Reflect the current station in the URL so the address bar is shareable.
   updateShareUrl(station);
 
   // Fly globe camera
   flyToStation(station);
+
+  return result;
 }
 
 // ─── Sharing & deep-links ─────────────────────────────────────────────────────
@@ -445,16 +458,44 @@ shareBtn.addEventListener('click', async () => {
   showToast(await copyText(url) ? 'Link copied to clipboard' : 'Could not copy link');
 });
 
-// Open a station from a deep-link (?station=<uuid>): select, play, reveal.
-export function openStationByUuid(uuid) {
+// Open a station from a deep-link (?station=<uuid>): select, play, reveal. If
+// the browser blocks autoplay (no user gesture on load), prompt the user to
+// play — the button click provides the gesture browsers require.
+export async function openStationByUuid(uuid) {
   const station =
     getState().filtered.find(s => s.uuid === uuid) ||
     getState().allStations.find(s => s.uuid === uuid);
   if (!station) return false;
-  playStation(station);
+  const result = await playStation(station);
   scrollToCard(station.uuid);
+  if (result && !result.started && result.reason === 'NotAllowedError') {
+    showAutoplayPrompt(station);
+  }
   return true;
 }
+
+// ─── Autoplay prompt (deep-link) ──────────────────────────────────────────────
+function showAutoplayPrompt(station) {
+  autoplayName.textContent = station.name;
+  pendingAutoplayStation = station;
+  autoplayModal.classList.remove('hidden');
+  autoplayPlayBtn.focus();
+}
+
+function hideAutoplayPrompt() {
+  autoplayModal.classList.add('hidden');
+  pendingAutoplayStation = null;
+}
+
+let pendingAutoplayStation = null;
+
+autoplayPlayBtn.addEventListener('click', () => {
+  const station = pendingAutoplayStation;
+  hideAutoplayPrompt();
+  if (station) playStation(station); // this click is the user gesture — plays
+});
+autoplayDismissBtn.addEventListener('click', hideAutoplayPrompt);
+autoplayModal.addEventListener('click', e => { if (e.target === autoplayModal) hideAutoplayPrompt(); });
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 let toastTimer;
@@ -593,6 +634,7 @@ document.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') {
     if (!globePopover.classList.contains('hidden')) { closeGlobePopover(); return; }
+    if (!autoplayModal.classList.contains('hidden')) { hideAutoplayPrompt(); return; }
     if (!searchModal.classList.contains('hidden')) { closeSearch(); return; }
     if (!sleepModal.classList.contains('hidden')) { sleepModal.classList.add('hidden'); return; }
   }

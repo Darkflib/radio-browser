@@ -175,6 +175,21 @@
       </div>
     </div>
 
+    <!-- Autoplay prompt (shown when a deep-link can't autoplay without a gesture) -->
+    <div id="autoplay-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Play station">
+      <div class="modal-box autoplay-box">
+        <h3>Play this station?</h3>
+        <p id="autoplay-station-name" class="autoplay-name">—</p>
+        <div class="autoplay-actions">
+          <button id="autoplay-dismiss" class="clear-btn">Dismiss</button>
+          <button id="autoplay-play" class="autoplay-play-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+            Play
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Globe cluster picker (co-located stations) -->
     <div id="globe-popover" class="globe-popover hidden" role="dialog" aria-label="Stations at this location"></div>
 
