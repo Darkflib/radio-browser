@@ -49,6 +49,19 @@ export function setStations(stations) {
   applyFilters();
 }
 
+/**
+ * Add a station to the in-memory set if not already present (used to inject a
+ * deep-linked station that wasn't in the cached top set). Returns the station
+ * already in the set if it exists, else the newly added one.
+ */
+export function addStationToTop(station) {
+  const existing = state.allStations.find(s => s.uuid === station.uuid);
+  if (existing) return existing;
+  state.allStations = [station, ...state.allStations];
+  applyFilters();
+  return station;
+}
+
 export function setFilterCountry(value) {
   state.filterCountry = value;
   applyFilters();

@@ -59,8 +59,10 @@ const sleepTimerBtn  = document.getElementById('sleep-timer-btn');
 const sleepLabel     = document.getElementById('sleep-label');
 const favBtn         = document.getElementById('fav-btn');
 const favIcon        = document.getElementById('fav-icon');
+const shareBtn       = document.getElementById('share-btn');
 const closePlayerBtn = document.getElementById('close-player-btn');
 const audioEl        = document.getElementById('audio-el');
+const toastEl        = document.getElementById('toast');
 
 const searchBtn      = document.getElementById('search-btn');
 const searchModal    = document.getElementById('search-modal');
@@ -364,8 +366,93 @@ export function playStation(station) {
   audioEl.play().catch(() => {});
   setPlaying(true);
 
+  // Reflect the current station in the URL so the address bar is shareable.
+  updateShareUrl(station);
+
   // Fly globe camera
   flyToStation(station);
+}
+
+// ─── Sharing & deep-links ─────────────────────────────────────────────────────
+// Build an absolute URL that deep-links to a station via ?station=<uuid>.
+export function stationShareUrl(station) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('station', station.uuid);
+  url.hash = '';
+  return url.toString();
+}
+
+// Keep the address bar in sync with the playing station (no history entry).
+function updateShareUrl(station) {
+  const url = new URL(window.location.href);
+  if (station) url.searchParams.set('station', station.uuid);
+  else url.searchParams.delete('station');
+  window.history.replaceState(null, '', url);
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback for browsers without the async clipboard API (or non-secure ctx).
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+shareBtn.addEventListener('click', async () => {
+  const station = getState().currentStation;
+  if (!station) return;
+  const url = stationShareUrl(station);
+
+  // Prefer the native share sheet where available (mobile), else copy the link.
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: station.name, text: `Listen to ${station.name}`, url });
+      return;
+    } catch {
+      // User cancelled or share failed — fall through to clipboard copy.
+    }
+  }
+  showToast(await copyText(url) ? 'Link copied to clipboard' : 'Could not copy link');
+});
+
+// Open a station from a deep-link (?station=<uuid>): select, play, reveal.
+export function openStationByUuid(uuid) {
+  const station =
+    getState().filtered.find(s => s.uuid === uuid) ||
+    getState().allStations.find(s => s.uuid === uuid);
+  if (!station) return false;
+  playStation(station);
+  scrollToCard(station.uuid);
+  return true;
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+export function showToast(message) {
+  toastEl.textContent = message;
+  toastEl.classList.remove('hidden');
+  // Force reflow so re-triggering restarts the transition.
+  void toastEl.offsetWidth;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toastEl.classList.remove('show');
+    setTimeout(() => toastEl.classList.add('hidden'), 200);
+  }, 2200);
 }
 
 // Pick a random station from the current filtered list (falling back to all
@@ -456,6 +543,7 @@ closePlayerBtn.addEventListener('click', () => {
   setPlaying(false);
   player.classList.add('hidden');
   refreshMarkerColors(null);
+  updateShareUrl(null);
 });
 
 favBtn.addEventListener('click', () => {
