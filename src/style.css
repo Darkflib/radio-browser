@@ -719,6 +719,46 @@ input[type="range"]::-webkit-slider-thumb {
 .sleep-opt:hover { background: var(--bg-3); border-color: var(--border-2); }
 .sleep-opt.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+/* Autoplay prompt */
+.autoplay-box {
+  padding: 20px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.autoplay-box h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.autoplay-name {
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.autoplay-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.autoplay-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bg);
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  transition: background 0.1s;
+}
+.autoplay-play-btn:hover { background: var(--accent-hover); }
+
 /* ─── Loading skeleton ────────────────────────────────────────────────────── */
 .skeleton {
   background: linear-gradient(90deg, var(--bg-3) 25%, var(--border) 50%, var(--bg-3) 75%);
