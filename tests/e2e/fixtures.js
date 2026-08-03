@@ -65,9 +65,10 @@ export async function mockRadioBrowser(page, overrides = {}) {
 
 /**
  * Install browser-API stubs the app depends on but which don't work headlessly:
- * media playback, geolocation, clipboard and native share. Playback resolves by
- * default; pass { autoplayBlocked: true } to make play() reject like a browser
- * blocking autoplay without a user gesture.
+ * media playback and the async clipboard. Playback resolves by default; pass
+ * { autoplayBlocked: true } to make play() reject like a browser blocking
+ * autoplay without a user gesture. (Geolocation and native share aren't stubbed
+ * — no current flow exercises them; add stubs here when one does.)
  */
 export async function stubBrowserApis(page, { autoplayBlocked = false } = {}) {
   await page.addInitScript(blocked => {

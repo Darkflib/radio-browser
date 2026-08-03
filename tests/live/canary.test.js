@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
+// Reuse the app's real health filter so the canary can't drift from the
+// contract it's meant to validate.
+import { isHealthy } from '../../src/api.js';
 
 /**
  * Advisory live canary — hits the real radio-browser mirrors.
@@ -14,18 +17,6 @@ const MIRRORS = [
   'https://at1.api.radio-browser.info',
 ];
 
-// The health filter the app applies (kept in sync with src/api.js by intent).
-const KNOWN_CODECS = new Set(['MP3', 'AAC', 'AAC+', 'OGG', 'FLAC', 'OPUS', 'HLS', 'MP3,AAC+', 'AAC,MP3']);
-function isHealthy(s) {
-  if (!s.url_resolved?.startsWith('https://')) return false;
-  if (!KNOWN_CODECS.has(s.codec?.toUpperCase())) return false;
-  const lat = parseFloat(s.geo_lat), lng = parseFloat(s.geo_long);
-  if (isNaN(lat) || isNaN(lng)) return false;
-  if (lat === 0 && lng === 0) return false;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
-  return true;
-}
-
 async function firstResponsiveMirror() {
   for (const host of MIRRORS) {
     try {
@@ -37,8 +28,14 @@ async function firstResponsiveMirror() {
 }
 
 describe('live radio-browser canary (advisory)', () => {
+  // Resolve a responsive mirror once and reuse it, so the two tests don't each
+  // re-probe (which could push worst-case timing past the suite testTimeout).
+  let host;
+  beforeAll(async () => {
+    host = await firstResponsiveMirror();
+  });
+
   it('at least one mirror responds with valid JSON', async () => {
-    const host = await firstResponsiveMirror();
     expect(host, 'no configured mirror responded').not.toBeNull();
     const res = await fetch(`${host}/json/stats`, { signal: AbortSignal.timeout(8000) });
     expect(res.ok).toBe(true);
@@ -47,8 +44,7 @@ describe('live radio-browser canary (advisory)', () => {
   });
 
   it('some returned records pass the app health filter', async () => {
-    const host = await firstResponsiveMirror();
-    expect(host).not.toBeNull();
+    expect(host, 'no configured mirror responded').not.toBeNull();
     const res = await fetch(
       `${host}/json/stations/search?order=clickcount&reverse=true&limit=500&hidebroken=true`,
       { signal: AbortSignal.timeout(20000) },

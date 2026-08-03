@@ -78,6 +78,9 @@ describe('layoutStations', () => {
     // station is represented exactly once.
     const uuids = nodes.map(n => n.station.uuid).sort();
     expect(uuids).toEqual(['co-a', 'co-b']);
+    // Crucially: grouped members are fanned out, so NONE keep their own coords.
+    // (Without this, two ungrouped singletons would pass the checks above.)
+    expect(nodes.every(n => n.lat !== n.station.lat || n.lng !== n.station.lng)).toBe(true);
   });
 
   it('keeps points outside the group radius separate and un-offset', () => {
@@ -132,6 +135,9 @@ describe('layoutStations', () => {
     const nodes = layoutStations(near);
     expect(nodes).toHaveLength(2);
     expect(nodes.every(n => n.kind === 'station')).toBe(true); // grouped & fanned
+    // Proof they were grouped via the short-way (~3km) distance, not left as two
+    // singletons ~40,000km apart: fanned members no longer sit on their coords.
+    expect(nodes.every(n => n.lat !== n.station.lat || n.lng !== n.station.lng)).toBe(true);
   });
 
   it('does not lose or duplicate stations regardless of input order', () => {

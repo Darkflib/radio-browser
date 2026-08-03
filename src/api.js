@@ -134,21 +134,9 @@ function invalidateHost() {
   try { localStorage.removeItem(HOST_CACHE_KEY); } catch { /* ignore */ }
 }
 
-/**
- * Is a station "healthy"?
- * - Must use HTTPS stream URL
- * - Must have a known codec
- * - Must have valid lat/lng coordinates
- */
-function isHealthy(station) {
-  if (!station.url_resolved?.startsWith('https://')) return false;
-  if (!KNOWN_CODECS.has(station.codec?.toUpperCase())) return false;
-  const lat = parseFloat(station.geo_lat);
-  const lng = parseFloat(station.geo_long);
-  if (isNaN(lat) || isNaN(lng)) return false;
-  if (lat === 0 && lng === 0) return false;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
-  return true;
+/** Coerce a value to a trimmed string, defaulting to '' for missing data. */
+function toText(value) {
+  return value == null ? '' : String(value).trim();
 }
 
 /** Coerce a value to a finite number, defaulting to 0 for junk/missing data. */
@@ -158,18 +146,41 @@ function toFinite(value) {
 }
 
 /**
+ * Is a station "healthy"?
+ * - Must use HTTPS stream URL
+ * - Must have a known codec
+ * - Must have valid lat/lng coordinates
+ *
+ * String fields are coerced before use so a single record with a non-string
+ * url/codec (upstream occasionally hands us junk) can't throw and abort the
+ * filter for the whole batch — it's simply rejected on its own.
+ */
+export function isHealthy(station) {
+  const url = toText(station.url_resolved);
+  if (!url.startsWith('https://')) return false;
+  if (!KNOWN_CODECS.has(toText(station.codec).toUpperCase())) return false;
+  const lat = parseFloat(station.geo_lat);
+  const lng = parseFloat(station.geo_long);
+  if (isNaN(lat) || isNaN(lng)) return false;
+  if (lat === 0 && lng === 0) return false;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
+  return true;
+}
+
+/**
  * Normalise raw station data to a consistent shape.
  *
- * Numeric fields are coerced to finite numbers so a hostile/malformed upstream
- * value (e.g. bitrate: '48"><img onerror=…>') can't survive as a string and be
- * interpolated into markup (the globe hover tooltip renders bitrate unescaped).
+ * Numeric fields are coerced to finite numbers and text fields to strings, so a
+ * hostile/malformed upstream value (e.g. bitrate: '48"><img onerror=…>', or a
+ * numeric name/codec) can neither survive as injectable markup nor throw on a
+ * string method like .trim()/.toUpperCase().
  */
 function normalise(station) {
   return {
     uuid: station.stationuuid,
-    name: (station.name || 'Unknown Station').trim(),
+    name: toText(station.name) || 'Unknown Station',
     url: station.url_resolved,
-    codec: station.codec?.toUpperCase() || 'MP3',
+    codec: toText(station.codec).toUpperCase() || 'MP3',
     bitrate: toFinite(station.bitrate),
     country: station.country || '',
     countrycode: station.countrycode || '',

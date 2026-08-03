@@ -270,6 +270,19 @@ describe('health filter', () => {
       ['uuid-healthy-1', 'uuid-hostile', 'uuid-malformed'].sort(),
     );
   });
+
+  it('a record with non-string name/codec is handled per-record, not fatally', async () => {
+    seedFreshHost();
+    // A numeric codec must be rejected (not throw in isHealthy); a numeric name
+    // on an otherwise-healthy record must normalise (not throw on .trim()).
+    const numericCodec = { ...rawHealthy, stationuuid: 'uuid-numcodec', codec: 128 };
+    const numericName = { ...rawHealthy, stationuuid: 'uuid-numname', name: 12345 };
+    installFetch({ data: () => jsonResponse([numericCodec, numericName, rawHealthy]) });
+
+    const result = await api.fetchStations(undefined, { force: true });
+    expect(result.map(s => s.uuid).sort()).toEqual(['uuid-healthy-1', 'uuid-numname']);
+    expect(result.find(s => s.uuid === 'uuid-numname').name).toBe('12345');
+  });
 });
 
 // ─── Normalisation ────────────────────────────────────────────────────────────
