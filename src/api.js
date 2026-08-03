@@ -216,22 +216,27 @@ function writeCache(stations) {
   }
 }
 
+/**
+ * GET a path against the current API host, re-probing a fresh mirror once if the
+ * request fails for a non-rate-limit reason (the cached host may have gone down).
+ * A 429 propagates without re-probing — that's a back-off signal, not a bad host.
+ */
+async function apiGet(path, opts) {
+  try {
+    return await fetchJson(`${await getApiHost()}${path}`, opts);
+  } catch (err) {
+    if (err instanceof RateLimitError) throw err;
+    invalidateHost();
+    return await fetchJson(`${await getApiHost({ force: true })}${path}`, opts);
+  }
+}
+
 /** Download + filter the top stations from the API (no caching). */
 async function downloadStations(onProgress) {
   const path = `/json/stations/search?order=clickcount&reverse=true&limit=${FETCH_LIMIT}&hidebroken=true`;
 
   onProgress?.('Connecting to radio-browser.info…');
-
-  let res;
-  try {
-    res = await fetchJson(`${await getApiHost()}${path}`);
-  } catch (err) {
-    // A rate-limit is a signal to back off, not to thrash mirrors.
-    if (err instanceof RateLimitError) throw err;
-    // The cached host may be down — re-probe once and try a fresh one.
-    invalidateHost();
-    res = await fetchJson(`${await getApiHost({ force: true })}${path}`);
-  }
+  const res = await apiGet(path);
 
   onProgress?.('Parsing station data…');
   const raw = await res.json();
@@ -279,8 +284,7 @@ export async function fetchStations(onProgress, { force = false } = {}) {
 export async function fetchStationByUuid(uuid) {
   if (!uuid) return null;
   try {
-    const host = await getApiHost();
-    const res = await fetchJson(`${host}/json/stations/byuuid/${encodeURIComponent(uuid)}`, { retries: 1 });
+    const res = await apiGet(`/json/stations/byuuid/${encodeURIComponent(uuid)}`, { retries: 1 });
     const arr = await res.json();
     const raw = Array.isArray(arr) ? arr[0] : null;
     if (!raw || !isHealthy(raw)) return null;
