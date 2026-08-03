@@ -1,0 +1,34 @@
+name: Live canary (advisory)
+
+# Advisory only — this workflow hits the real radio-browser mirrors and is NOT a
+# merge gate. It runs on a schedule and on demand so upstream outages surface
+# without ever blocking a pull request.
+on:
+  schedule:
+    - cron: '17 6 * * *' # daily, ~06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: Live radio-browser canary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run live canary
+        run: npm run test:live

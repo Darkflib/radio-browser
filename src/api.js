@@ -134,15 +134,31 @@ function invalidateHost() {
   try { localStorage.removeItem(HOST_CACHE_KEY); } catch { /* ignore */ }
 }
 
+/** Coerce a value to a trimmed string, defaulting to '' for missing data. */
+function toText(value) {
+  return value == null ? '' : String(value).trim();
+}
+
+/** Coerce a value to a finite number, defaulting to 0 for junk/missing data. */
+function toFinite(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /**
  * Is a station "healthy"?
  * - Must use HTTPS stream URL
  * - Must have a known codec
  * - Must have valid lat/lng coordinates
+ *
+ * String fields are coerced before use so a single record with a non-string
+ * url/codec (upstream occasionally hands us junk) can't throw and abort the
+ * filter for the whole batch — it's simply rejected on its own.
  */
-function isHealthy(station) {
-  if (!station.url_resolved?.startsWith('https://')) return false;
-  if (!KNOWN_CODECS.has(station.codec?.toUpperCase())) return false;
+export function isHealthy(station) {
+  const url = toText(station.url_resolved);
+  if (!url.startsWith('https://')) return false;
+  if (!KNOWN_CODECS.has(toText(station.codec).toUpperCase())) return false;
   const lat = parseFloat(station.geo_lat);
   const lng = parseFloat(station.geo_long);
   if (isNaN(lat) || isNaN(lng)) return false;
@@ -153,14 +169,19 @@ function isHealthy(station) {
 
 /**
  * Normalise raw station data to a consistent shape.
+ *
+ * Numeric fields are coerced to finite numbers and text fields to strings, so a
+ * hostile/malformed upstream value (e.g. bitrate: '48"><img onerror=…>', or a
+ * numeric name/codec) can neither survive as injectable markup nor throw on a
+ * string method like .trim()/.toUpperCase().
  */
 function normalise(station) {
   return {
     uuid: station.stationuuid,
-    name: (station.name || 'Unknown Station').trim(),
+    name: toText(station.name) || 'Unknown Station',
     url: station.url_resolved,
-    codec: station.codec?.toUpperCase() || 'MP3',
-    bitrate: station.bitrate || 0,
+    codec: toText(station.codec).toUpperCase() || 'MP3',
+    bitrate: toFinite(station.bitrate),
     country: station.country || '',
     countrycode: station.countrycode || '',
     language: station.language || '',
@@ -168,8 +189,8 @@ function normalise(station) {
     favicon: station.favicon || '',
     lat: parseFloat(station.geo_lat),
     lng: parseFloat(station.geo_long),
-    votes: station.votes || 0,
-    clicks: station.clickcount || 0,
+    votes: toFinite(station.votes),
+    clicks: toFinite(station.clickcount),
   };
 }
 

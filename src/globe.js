@@ -17,6 +17,7 @@ import { feature } from 'topojson-client';
 import worldData from 'world-atlas/countries-110m.json';
 import { getState } from './store.js';
 import { layoutStations } from './cluster.js';
+import { stationTooltip, clusterTooltip } from './tooltip.js';
 
 let globeInstance = null;
 
@@ -155,20 +156,10 @@ export function initGlobe(container, onClickCb, onClusterClickCb) {
     .pointRadius(d => d.size)
     .pointResolution(6)
     .pointsMerge(false)
-    // Tooltip (names/details shown only on hover — never rendered onto the globe)
-    .pointLabel(d => d.type === 'cluster'
-      ? `
-      <div class="globe-tooltip">
-        <strong>${d.count} stations</strong>
-        <span>${escHtml(d.country)}${d.country ? ' · ' : ''}click to list</span>
-      </div>
-    `
-      : `
-      <div class="globe-tooltip">
-        <strong>${escHtml(d.name)}</strong>
-        <span>${escHtml(d.country)}${d.codec ? ' · ' + escHtml(d.codec) : ''}${d.bitrate ? ' · ' + d.bitrate + ' kbps' : ''}</span>
-      </div>
-    `)
+    // Tooltip (names/details shown only on hover — never rendered onto the globe).
+    // Built by the pure, unit-tested helpers in tooltip.js so the injection sink
+    // stays escaped/coerced.
+    .pointLabel(d => (d.type === 'cluster' ? clusterTooltip(d) : stationTooltip(d)))
     .onPointClick(d => {
       if (d.type === 'cluster') {
         onClusterClick?.(d.stations);
@@ -293,12 +284,4 @@ export function flyToStation(station) {
   const controls = globeInstance.controls();
   if (controls) controls.autoRotate = false;
   globeInstance.pointOfView({ lat: station.lat, lng: station.lng, altitude: 1.5 }, 900);
-}
-
-function escHtml(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
