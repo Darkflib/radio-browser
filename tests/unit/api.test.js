@@ -10,6 +10,7 @@ import {
   rawOutOfRange,
   rawMalformed,
   rawHostile,
+  rawNumericText,
   rawBatch,
 } from '../fixtures/stations.js';
 
@@ -325,6 +326,22 @@ describe('fetchStationByUuid — normalisation', () => {
       clicks: 0,
     });
     expect(s.lat).toBeCloseTo(40.4);
+  });
+
+  it('coerces EVERY text field to a string, even when upstream sends numbers', async () => {
+    stubByUuid(rawNumericText);
+    const s = await api.fetchStationByUuid('uuid-numeric-text');
+    // Regression: country/countrycode/language/tags/favicon were previously left
+    // as raw truthy values, so a numeric one crashed downstream .toLowerCase()/
+    // .split(',') in filtering and search.
+    for (const field of ['name', 'codec', 'country', 'countrycode', 'language', 'tags', 'favicon']) {
+      expect(typeof s[field], `${field} should be a string`).toBe('string');
+    }
+    expect(s.country).toBe('44');
+    expect(s.tags).toBe('2000');
+    // And the downstream string operations no longer throw on it.
+    expect(() => s.tags.toLowerCase().split(',')).not.toThrow();
+    expect(() => s.country.toLowerCase()).not.toThrow();
   });
 
   it('coerces hostile numeric fields to finite numbers (tooltip-injection guard)', async () => {

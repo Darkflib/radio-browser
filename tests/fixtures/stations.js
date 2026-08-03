@@ -83,6 +83,28 @@ export const rawHostile = {
   clickcount: `20"><b>`,
 };
 
+/**
+ * Healthy but with NUMERIC text fields (upstream occasionally hands us numbers
+ * where strings are expected). normalise() must coerce every text field to a
+ * string so downstream .toLowerCase()/.split(',') in filtering/search can't crash.
+ */
+export const rawNumericText = {
+  stationuuid: 'uuid-numeric-text',
+  name: 12345,
+  url_resolved: 'https://stream.example.com/numeric',
+  codec: 'mp3',
+  bitrate: 128,
+  country: 44,
+  countrycode: 100,
+  language: 7,
+  tags: 2000,
+  favicon: 999,
+  geo_lat: 51.5,
+  geo_long: -0.12,
+  votes: 10,
+  clickcount: 20,
+};
+
 /** A big batch of healthy raw stations for over-fetch / filter tests. */
 export function rawBatch(n = 20) {
   return Array.from({ length: n }, (_, i) => ({

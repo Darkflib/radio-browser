@@ -170,10 +170,12 @@ export function isHealthy(station) {
 /**
  * Normalise raw station data to a consistent shape.
  *
- * Numeric fields are coerced to finite numbers and text fields to strings, so a
- * hostile/malformed upstream value (e.g. bitrate: '48"><img onerror=…>', or a
- * numeric name/codec) can neither survive as injectable markup nor throw on a
- * string method like .trim()/.toUpperCase().
+ * EVERY numeric field is coerced to a finite number and EVERY text field to a
+ * string, so a hostile/malformed upstream value (e.g. bitrate:
+ * '48"><img onerror=…>', or a numeric name/country/tags) can neither survive as
+ * injectable markup nor later throw on a string method — downstream filtering
+ * and search call .toLowerCase()/.split(',') on country/tags, so a numeric value
+ * left un-coerced would crash them.
  */
 function normalise(station) {
   return {
@@ -182,11 +184,11 @@ function normalise(station) {
     url: station.url_resolved,
     codec: toText(station.codec).toUpperCase() || 'MP3',
     bitrate: toFinite(station.bitrate),
-    country: station.country || '',
-    countrycode: station.countrycode || '',
-    language: station.language || '',
-    tags: station.tags || '',
-    favicon: station.favicon || '',
+    country: toText(station.country),
+    countrycode: toText(station.countrycode),
+    language: toText(station.language),
+    tags: toText(station.tags),
+    favicon: toText(station.favicon),
     lat: parseFloat(station.geo_lat),
     lng: parseFloat(station.geo_long),
     votes: toFinite(station.votes),
