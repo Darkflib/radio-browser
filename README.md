@@ -54,6 +54,47 @@ npm run build   # produce a production build in dist/
 npm run preview # preview the production build locally
 ```
 
+## Testing
+
+The suite is split into deterministic, merge-gating tests (no network) and an
+advisory live canary that is never a merge gate.
+
+```bash
+npm test              # unit/integration tests (Vitest, jsdom)
+npm run test:watch    # the same, in watch mode
+npm run test:coverage # unit tests + enforced coverage thresholds
+npm run test:e2e      # Playwright browser flows (API fully mocked)
+npm run test:live     # advisory live canary — hits the real service (NOT a gate)
+```
+
+- **Unit / integration** ([`tests/unit`](tests/unit)) — the risk-bearing logic:
+  - `api.js` — cache freshness & `force`, stale-while-error fallback, bounded
+    retries, 429/4xx-vs-5xx policy, mirror re-probing, UUID encoding, the health
+    filter, and safe normalisation (numeric fields coerced to finite numbers).
+  - `store.js` — country/genre/codec/favorites filtering (incl. compound codecs
+    and cross-filtered option counts), near-me ordering, favorites persistence,
+    and the sleep timer.
+  - `cluster.js` — antimeridian distance, group-radius and spread-limit
+    boundaries, centroids, and order-independence.
+- **Coverage gates** (enforced in [`vitest.config.js`](vitest.config.js)):
+  `api.js` / `store.js` / `cluster.js` at **85%** lines/functions/statements and
+  **75%** branches. The WebGL/globe and DOM layers are covered behaviourally by
+  the e2e suite instead.
+- **E2E** ([`tests/e2e`](tests/e2e)) — five browser flows (initial load,
+  filtering/search, playback, deep links, persistence) plus a security
+  regression that injects markup into every upstream field and asserts nothing
+  executes. Every radio-browser request is intercepted, so e2e never touches the
+  network. A small reusable station fixture (healthy, broken, malformed,
+  clustered, and hostile-metadata records) lives in
+  [`tests/fixtures`](tests/fixtures) and [`tests/e2e/fixtures.js`](tests/e2e/fixtures.js).
+- **Live canary** ([`tests/live`](tests/live)) — advisory only. It checks that a
+  mirror responds with valid JSON and that some records survive the health
+  filter; it never asserts a specific station exists or plays. It runs on a
+  schedule via [`.github/workflows/live-canary.yml`](.github/workflows/live-canary.yml).
+
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the unit tests,
+coverage, and production build on Node 20, plus the Playwright e2e job.
+
 ## Deployment
 
 Pushing to `main` triggers the GitHub Actions workflow in

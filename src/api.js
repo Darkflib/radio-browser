@@ -151,8 +151,18 @@ function isHealthy(station) {
   return true;
 }
 
+/** Coerce a value to a finite number, defaulting to 0 for junk/missing data. */
+function toFinite(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 /**
  * Normalise raw station data to a consistent shape.
+ *
+ * Numeric fields are coerced to finite numbers so a hostile/malformed upstream
+ * value (e.g. bitrate: '48"><img onerror=…>') can't survive as a string and be
+ * interpolated into markup (the globe hover tooltip renders bitrate unescaped).
  */
 function normalise(station) {
   return {
@@ -160,7 +170,7 @@ function normalise(station) {
     name: (station.name || 'Unknown Station').trim(),
     url: station.url_resolved,
     codec: station.codec?.toUpperCase() || 'MP3',
-    bitrate: station.bitrate || 0,
+    bitrate: toFinite(station.bitrate),
     country: station.country || '',
     countrycode: station.countrycode || '',
     language: station.language || '',
@@ -168,8 +178,8 @@ function normalise(station) {
     favicon: station.favicon || '',
     lat: parseFloat(station.geo_lat),
     lng: parseFloat(station.geo_long),
-    votes: station.votes || 0,
-    clicks: station.clickcount || 0,
+    votes: toFinite(station.votes),
+    clicks: toFinite(station.clickcount),
   };
 }
 

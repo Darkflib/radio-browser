@@ -12,7 +12,11 @@ function loadFavorites() {
 }
 
 function saveFavorites(set) {
-  localStorage.setItem(FAV_KEY, JSON.stringify([...set]));
+  // Best-effort, like the app's other localStorage writes: a full quota (or a
+  // storage-disabled context) must not turn a favorite toggle into a crash.
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify([...set]));
+  } catch { /* best-effort */ }
 }
 
 const state = {
