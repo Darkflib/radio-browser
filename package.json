@@ -14,7 +14,7 @@
     "test:live": "vitest run --config vitest.live.config.js"
   },
   "dependencies": {
-    "globe.gl": "^2.46.1",
+    "globe.gl": "^2.46.2",
     "topojson-client": "^3.1.0",
     "world-atlas": "^2.0.2"
   },
